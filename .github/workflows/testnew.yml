@@ -33,7 +33,7 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/KernelSU
           git fetch
-          git checkout 9a10a3bbcc014917f724d546d186595b5deaa9af
+          git checkout 08e1de9162ffb0f03b076eecdad1e73452eed735
           echo
           cd ../..
           
@@ -41,6 +41,10 @@ jobs:
         run: |
           ln -s $GITHUB_WORKSPACE/KernelSU/kernel/ $GITHUB_WORKSPACE/drivers/kernelsu
           chmod +x ./drivers/kernelsu
+
+      - name: Add NoMount
+        run: |
+          curl https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh | bash -s dev
 
       - name: Run BBG setup
         run: |
