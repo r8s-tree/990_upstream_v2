@@ -72,11 +72,6 @@ static int statfs_by_dentry(struct dentry *dentry, struct kstatfs *buf)
 }
 
 #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
-extern bool susfs_is_inode_sus_kstat(struct inode *inode, bool *out_is_fuse);
-extern int susfs_sus_kstat_spoof_vfs_statfs(struct inode *inode, struct kstatfs *buf, bool *is_fuse);
-#endif // #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
-
-#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
 static int susfs_statfs_by_dentry(struct dentry *dentry, struct kstatfs *buf, bool *is_fuse)
 {
 	int retval;
@@ -88,16 +83,20 @@ static int susfs_statfs_by_dentry(struct dentry *dentry, struct kstatfs *buf, bo
 	retval = security_sb_statfs(dentry);
 	if (retval)
 		return retval;
-	if (susfs_sus_kstat_spoof_vfs_statfs(d_backing_inode(dentry), buf, is_fuse))
-		goto orig_flow;
+	if (!susfs_sus_kstat_spoof_vfs_statfs(d_backing_inode(dentry), buf, is_fuse))
+		goto bypass_orig_flow;
 	retval = dentry->d_sb->s_op->statfs(dentry, buf);
-orig_flow:
+bypass_orig_flow:
 	if (retval == 0 && buf->f_frsize == 0)
 		buf->f_frsize = buf->f_bsize;
 	return retval;
 }
 #endif // #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
 
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+extern bool susfs_is_inode_sus_kstat(struct inode *inode, bool *out_is_fuse);
+extern int susfs_sus_kstat_spoof_vfs_statfs(struct inode *inode, struct kstatfs *buf, bool *is_fuse);
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 extern struct vfsmount *susfs_get_non_sus_vfsmnt_from_vfsmnt(struct vfsmount *vfsmnt);
 #endif //#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
