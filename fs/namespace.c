@@ -1268,8 +1268,9 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
 	struct super_block *sb = old->mnt.mnt_sb;
 	struct mount *mnt;
 	int err;
-
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	bool is_mnt_ksu_unshared = false;
+
 	// - We will just stop checking for ksu process if /sdcard/Android is accessible,
 	//   for the sake of performance
 	if (static_branch_unlikely(&susfs_is_sdcard_android_data_not_decrypted)) {
@@ -1282,6 +1283,7 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
 		//   mnt->mnt_id is assigned without ida when it is being freed in mnt_free_id().
 		if (flag & CL_COPY_MNT_NS) {
 			mnt = susfs_alloc_unshare_ksu_vfsmnt(old->mnt_devname, old->mnt_id);
+			is_mnt_ksu_unshared = true;
 			goto bypass_orig_flow;
 		}
 		// else we just go assign fake mnt_id starting with DEFAULT_KSU_MNT_ID
@@ -1341,10 +1343,8 @@ bypass_orig_flow:
 		mnt->mnt.mnt_flags |= MNT_LOCKED;
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-	if (static_branch_unlikely(&susfs_is_sdcard_android_data_not_decrypted)) {
-		if (susfs_is_current_ksu_domain() && (flag & CL_COPY_MNT_NS))
+	if (unlikely(is_mnt_ksu_unshared))
 		mnt->mnt.mnt_flags |= VFSMOUNT_MNT_FLAGS_KSU_UNSHARED_MNT;
-	}
 #endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 
 	atomic_inc(&sb->s_active);
