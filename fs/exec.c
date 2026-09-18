@@ -1731,14 +1731,15 @@ static int exec_binprm(struct linux_binprm *bprm)
 }
 
 #ifdef CONFIG_KSU_SUSFS
-extern bool ksu_execveat_hook __read_mostly;
-extern bool ksu_su_compat_enabled __read_mostly;
-extern bool susfs_is_sdcard_android_data_decrypted __read_mostly;
+extern struct static_key_true ksu_su_compat_enabled;
+extern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;
 extern bool __ksu_is_allow_uid_for_current(uid_t uid);
 extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
 			void *envp, int *flags);
 extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv,
 				void *envp, int *flags);
+extern int ksu_handle_post_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv,
+				void *envp, int *flags, int *retval);
 #endif
 
 /*
@@ -1753,19 +1754,23 @@ static int __do_execve_file(int fd, struct filename *filename,
 	struct linux_binprm *bprm;
 	struct files_struct *displaced;
 	int retval;
+#ifdef CONFIG_KSU_SUSFS
+	bool is_su_session = false;
+#endif // #ifdef CONFIG_KSU_SUSFS
 
 	if (IS_ERR(filename))
 		return PTR_ERR(filename);
 
 #ifdef CONFIG_KSU_SUSFS
-	if (likely(susfs_is_current_proc_umounted()) || !ksu_su_compat_enabled) {
+	if (likely(susfs_is_current_proc_no_su()))
 		goto orig_flow;
-	}
 
-	if (unlikely(ksu_execveat_hook || !susfs_is_sdcard_android_data_decrypted)) {
-		ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
-	} else if ((__ksu_is_allow_uid_for_current(current_uid().val))) {
-		ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
+	if (static_branch_likely(&ksu_su_compat_enabled)) {
+		if (static_branch_unlikely(&susfs_is_sdcard_android_data_not_decrypted)) {
+			is_su_session = !ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
+		} else {
+			is_su_session = !ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
+		}
 	}
 
 orig_flow:
@@ -1913,6 +1918,10 @@ out_unmark:
 	current->in_execve = 0;
 
 out_free:
+#ifdef CONFIG_KSU_SUSFS
+	if (unlikely(is_su_session))
+		(void)ksu_handle_post_execveat_sucompat(&fd, &filename, &argv, &envp, &flags, &retval);
+#endif // #ifdef CONFIG_KSU_SUSFS
 	free_bprm(bprm);
 	kfree(pathbuf);
 

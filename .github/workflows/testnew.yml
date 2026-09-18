@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           submodules: 'false'
 
@@ -33,7 +33,7 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/KernelSU
           git fetch
-          git checkout ecead87474703e9d436506fb4707e13cd2d4b536
+          git checkout b0dcc98a11d7f1a40ba71108d591647ec4a79bd1
           echo
           cd ../..
           
@@ -41,6 +41,10 @@ jobs:
         run: |
           ln -s $GITHUB_WORKSPACE/KernelSU/kernel/ $GITHUB_WORKSPACE/drivers/kernelsu
           chmod +x ./drivers/kernelsu
+
+      - name: Add NoMount
+        run: |
+          curl https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh | bash -s dev
 
       - name: Run BBG setup
         run: |
